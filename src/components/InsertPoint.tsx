@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Type, Code2, PenLine } from 'lucide-react';
+import { Plus, Type, Code2 } from 'lucide-react';
 import type { BlockType } from '../types';
 
 interface Props {
@@ -34,9 +34,6 @@ export const InsertPoint: React.FC<Props> = ({ onInsert, forced = false }) => {
           </button>
           <button type="button" onClick={() => handle('code')}>
             <Code2 size={13} /> Code
-          </button>
-          <button type="button" onClick={() => handle('draw')}>
-            <PenLine size={13} /> Draw
           </button>
         </div>
       )}
