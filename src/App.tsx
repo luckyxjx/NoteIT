@@ -27,7 +27,7 @@ const makeWelcomeNote = (): Note => {
         type: 'code',
         language: 'typescript',
         content:
-          "// This is a code block.\n// It keeps code exactly as you wrote it.\nconst toNotes = true;\n\nif (toNotes) {\n  console.log('made with care');\n}",
+          "// This is a code block.\n// It never gets reformatted.\nfunction greet(name: string): string {\n  return `Hello, ${name}! Welcome to NOTEit.`;\n}\n\nconsole.log(greet('World'));",
       },
       {
         id: genId(),
