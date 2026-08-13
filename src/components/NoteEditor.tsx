@@ -22,12 +22,12 @@ import { PageCanvas, type PageCanvasHandle } from './PageCanvas';
 
 // ─── Palette (same as DrawBlock) ─────────────────────────────────────────────
 const PALETTE = [
-  { label: 'Ink',       value: '#3A2E27' },
-  { label: 'Teal',      value: '#5FBFB0' },
-  { label: 'Amber',     value: '#C9A876' },
+  { label: 'Ink', value: '#3A2E27' },
+  { label: 'Teal', value: '#5FBFB0' },
+  { label: 'Amber', value: '#C9A876' },
   { label: 'Terracotta', value: '#B05A45' },
-  { label: 'Sage',      value: '#7A9E7A' },
-  { label: 'Lavender',  value: '#9B8EC4' },
+  { label: 'Sage', value: '#7A9E7A' },
+  { label: 'Lavender', value: '#9B8EC4' },
 ];
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -71,13 +71,13 @@ export const NoteEditor: React.FC<Props> = ({
   onUpdateDrawLayer,
 }) => {
   // ── Draw mode state ────────────────────────────────────────────────────────
-  const [drawMode, setDrawMode]   = useState(false);
-  const [drawTool, setDrawTool]   = useState<'pen' | 'eraser'>('pen');
+  const [drawMode, setDrawMode] = useState(false);
+  const [drawTool, setDrawTool] = useState<'pen' | 'eraser'>('pen');
   const [drawColor, setDrawColor] = useState(PALETTE[0].value);
-  const [drawSize, setDrawSize]   = useState(2.5);
+  const [drawSize, setDrawSize] = useState(2.5);
 
   // ── Refs ───────────────────────────────────────────────────────────────────
-  const pageCanvasRef     = useRef<PageCanvasHandle | null>(null);
+  const pageCanvasRef = useRef<PageCanvasHandle | null>(null);
   const notebookContentRef = useRef<HTMLDivElement | null>(null);
 
   // ── Empty / no note ────────────────────────────────────────────────────────
@@ -103,7 +103,7 @@ export const NoteEditor: React.FC<Props> = ({
           </div>
           <p className="empty-main-sub">
             {ready
-              ? 'Your thoughts are waiting. Select a note or start a new one — this is your space.'
+              ? 'this is your space.'
               : 'One moment…'}
           </p>
           {ready && (
@@ -335,8 +335,8 @@ export const NoteEditor: React.FC<Props> = ({
                   <div className="block-wrapper">
                     <div className="block-controls">
                       <span className="block-tag">
-                        {block.type === 'code' && <Code2   size={11} />}
-                        {block.type === 'text' && <Type    size={11} />}
+                        {block.type === 'code' && <Code2 size={11} />}
+                        {block.type === 'text' && <Type size={11} />}
                         {block.type === 'draw' && <PenLine size={11} />}
                         {block.type}
                       </span>

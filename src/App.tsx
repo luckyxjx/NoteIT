@@ -27,13 +27,13 @@ const makeWelcomeNote = (): Note => {
         type: 'code',
         language: 'typescript',
         content:
-          "// This is a code block.\n// It keeps code exactly as you wrote it.\nconst forHer = true;\n\nif (forHer) {\n  console.log('made with care 🌿');\n}",
+          "// This is a code block.\n// It keeps code exactly as you wrote it.\nconst toNotes = true;\n\nif (toNotes) {\n  console.log('made with care');\n}",
       },
       {
         id: genId(),
         type: 'text',
         content:
-          'Use the + between blocks to mix text and code in any order you like. Everything saves automatically — just write.',
+          'Use the + between blocks to mix text and code and draw in any order you like. Everything saves automatically — just write.',
       },
     ],
   };
@@ -217,8 +217,8 @@ export default function App() {
         type === 'code'
           ? { id: genId(), type: 'code', language: '', content: '' }
           : type === 'draw'
-          ? { id: genId(), type: 'draw', content: '' }
-          : { id: genId(), type: 'text', content: '' };
+            ? { id: genId(), type: 'draw', content: '' }
+            : { id: genId(), type: 'text', content: '' };
       const blocks = [...prev.blocks];
       blocks.splice(atIndex, 0, newBlock);
       return { ...prev, blocks };
