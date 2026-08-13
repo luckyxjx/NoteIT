@@ -8,6 +8,9 @@ import React, {
 
 export interface PageCanvasHandle {
   clear: () => void;
+  startStroke: (e: React.PointerEvent<HTMLElement>) => void;
+  moveStroke: (e: React.PointerEvent<HTMLElement>) => void;
+  endStroke: (e: React.PointerEvent<HTMLElement>) => void;
 }
 
 interface Props {
@@ -41,6 +44,30 @@ export const PageCanvas = forwardRef<PageCanvasHandle, Props>(
         savedDataUrl.current = undefined;
         onChange(canvas.toDataURL('image/png'));
       },
+      startStroke(e) {
+        isDrawing.current = true;
+        const pt = getXY(e);
+        lastPt.current = pt;
+        const ctx = canvasRef.current!.getContext('2d')!;
+        const p   = e.pressure > 0 ? e.pressure : 0.5;
+        drawSegment(ctx, pt, pt, p);
+      },
+      moveStroke(e) {
+        if (!isDrawing.current || !lastPt.current) return;
+        const ctx = canvasRef.current!.getContext('2d')!;
+        const pt  = getXY(e);
+        const p   = e.pressure > 0 ? e.pressure : 0.5;
+        drawSegment(ctx, lastPt.current, pt, p);
+        lastPt.current = pt;
+      },
+      endStroke(e) {
+        if (!isDrawing.current) return;
+        isDrawing.current = false;
+        lastPt.current    = null;
+        const dataUrl = canvasRef.current!.toDataURL('image/png');
+        savedDataUrl.current = dataUrl;
+        onChange(dataUrl);
+      }
     }));
 
     // ── Size canvas to content element, restore drawing ──────────────────────
@@ -108,7 +135,7 @@ export const PageCanvas = forwardRef<PageCanvasHandle, Props>(
     }, [initialDrawing]); // eslint-disable-line
 
     // ── Coordinate helper ────────────────────────────────────────────────────
-    const getXY = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const getXY = (e: React.PointerEvent<HTMLElement>) => {
       const canvas = canvasRef.current!;
       const rect   = canvas.getBoundingClientRect();
       return {
@@ -145,39 +172,6 @@ export const PageCanvas = forwardRef<PageCanvasHandle, Props>(
       }
     };
 
-    // ── Pointer events ───────────────────────────────────────────────────────
-    const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-      if (!active) return;
-      e.preventDefault();
-      canvasRef.current!.setPointerCapture(e.pointerId);
-      isDrawing.current = true;
-      const pt = getXY(e);
-      lastPt.current = pt;
-
-      const ctx = canvasRef.current!.getContext('2d')!;
-      const p   = e.pressure > 0 ? e.pressure : 0.5;
-      drawSegment(ctx, pt, pt, p);
-    };
-
-    const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-      if (!active || !isDrawing.current || !lastPt.current) return;
-      e.preventDefault();
-      const ctx = canvasRef.current!.getContext('2d')!;
-      const pt  = getXY(e);
-      const p   = e.pressure > 0 ? e.pressure : 0.5;
-      drawSegment(ctx, lastPt.current, pt, p);
-      lastPt.current = pt;
-    };
-
-    const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
-      if (!isDrawing.current) return;
-      isDrawing.current = false;
-      lastPt.current    = null;
-      const dataUrl = canvasRef.current!.toDataURL('image/png');
-      savedDataUrl.current = dataUrl;
-      onChange(dataUrl);
-    };
-
     return (
       <canvas
         ref={canvasRef}
@@ -187,12 +181,9 @@ export const PageCanvas = forwardRef<PageCanvasHandle, Props>(
             ? (tool === 'eraser' ? 'cell' : 'crosshair')
             : 'default',
           touchAction: active ? 'none' : 'auto',
+          // Always pointer-events none so the wrapper can handle the logic seamlessly
+          pointerEvents: 'none',
         }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onPointerLeave={onPointerUp}
         aria-hidden="true"
       />
     );

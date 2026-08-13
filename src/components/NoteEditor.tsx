@@ -121,6 +121,34 @@ export const NoteEditor: React.FC<Props> = ({
     );
   }
 
+  // ── Pointer events (Seamless stylus) ───────────────────────────────────────
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const isPen = e.pointerType === 'pen';
+    const shouldDraw = isPen || drawMode;
+    if (shouldDraw) {
+      e.preventDefault(); // Stop text focus
+      e.currentTarget.setPointerCapture(e.pointerId);
+      pageCanvasRef.current?.startStroke(e);
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const isPen = e.pointerType === 'pen';
+    if (isPen || drawMode) {
+      e.preventDefault();
+      pageCanvasRef.current?.moveStroke(e);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const isPen = e.pointerType === 'pen';
+    if (isPen || drawMode) {
+      e.preventDefault();
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      pageCanvasRef.current?.endStroke(e);
+    }
+  };
+
   return (
     <main className="main" aria-label="Note editor">
 
@@ -262,7 +290,15 @@ export const NoteEditor: React.FC<Props> = ({
         <div className="notebook-page">
           <div className="spiral-col" aria-hidden="true" />
 
-          <div className="notebook-content" ref={notebookContentRef}>
+          <div
+            className="notebook-content"
+            ref={notebookContentRef}
+            onPointerDownCapture={handlePointerDown}
+            onPointerMoveCapture={handlePointerMove}
+            onPointerUpCapture={handlePointerUp}
+            onPointerCancelCapture={handlePointerUp}
+            style={{ touchAction: drawMode ? 'none' : 'auto' }}
+          >
 
             {/* Title — first thing on the page */}
             <input
