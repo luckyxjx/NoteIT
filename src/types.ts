@@ -1,6 +1,6 @@
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type BlockType = 'text' | 'code';
+export type BlockType = 'text' | 'code' | 'draw';
 
 export interface TextBlock {
   id: string;

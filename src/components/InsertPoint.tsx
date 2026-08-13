@@ -35,6 +35,9 @@ export const InsertPoint: React.FC<Props> = ({ onInsert, forced = false }) => {
           <button type="button" onClick={() => handle('code')}>
             <Code2 size={13} /> Code
           </button>
+          <button type="button" onClick={() => handle('draw')}>
+            <PenLine size={13} /> Draw
+          </button>
         </div>
       )}
     </div>

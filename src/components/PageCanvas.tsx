@@ -60,7 +60,7 @@ export const PageCanvas = forwardRef<PageCanvasHandle, Props>(
         drawSegment(ctx, lastPt.current, pt, p);
         lastPt.current = pt;
       },
-      endStroke(e) {
+      endStroke() {
         if (!isDrawing.current) return;
         isDrawing.current = false;
         lastPt.current    = null;

@@ -111,7 +111,7 @@ export const DrawBlock: React.FC<Props> = ({ block, onChange }) => {
     lastPt.current = pt;
   }, [getXY, draw]);
 
-  const onPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+  const onPointerUp = useCallback(() => {
     if (!isDrawing.current) return;
     isDrawing.current = false;
     lastPt.current    = null;
