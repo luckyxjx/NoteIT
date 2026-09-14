@@ -19,6 +19,7 @@ const makeWelcomeNote = (): Note => {
       {
         id: genId(),
         type: 'text',
+        highlights: [],
         content:
           'This is a text block — like a sticky note on your desk. Write anything here: thoughts, plans, lists, little things you want to remember. It grows as you type.',
       },
@@ -32,6 +33,7 @@ const makeWelcomeNote = (): Note => {
       {
         id: genId(),
         type: 'text',
+        highlights: [],
         content:
           'Use the + between blocks to mix text and code and draw in any order you like. Everything saves automatically — just write.',
       },
@@ -139,7 +141,7 @@ export default function App() {
       title: '',
       createdAt: now,
       updatedAt: now,
-      blocks: [{ id: genId(), type: 'text', content: '' }],
+      blocks: [{ id: genId(), type: 'text', content: '', highlights: [] }],
     };
     storage.set('note:' + note.id, JSON.stringify(note));
     skipSave.current = true;
@@ -193,7 +195,14 @@ export default function App() {
     setCurrentNote((prev) => {
       if (!prev) return prev;
       if (prev.blocks.length <= 1)
-        return { ...prev, blocks: [{ ...prev.blocks[0], content: '' }] };
+        return {
+          ...prev,
+          blocks: [
+            prev.blocks[0].type === 'text'
+              ? { ...prev.blocks[0], content: '', highlights: [] }
+              : { ...prev.blocks[0], content: '' },
+          ],
+        };
       return { ...prev, blocks: prev.blocks.filter((b) => b.id !== blockId) };
     });
   }, []);
@@ -218,7 +227,7 @@ export default function App() {
           ? { id: genId(), type: 'code', language: '', content: '' }
           : type === 'draw'
             ? { id: genId(), type: 'draw', content: '' }
-            : { id: genId(), type: 'text', content: '' };
+            : { id: genId(), type: 'text', content: '', highlights: [] };
       const blocks = [...prev.blocks];
       blocks.splice(atIndex, 0, newBlock);
       return { ...prev, blocks };
@@ -266,6 +275,7 @@ export default function App() {
 
       <NoteEditor
         note={currentNote}
+        noteId={currentId}
         ready={ready}
         saveState={saveState}
         onMenuOpen={() => setMobileOpen(true)}

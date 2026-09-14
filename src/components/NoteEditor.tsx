@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   Menu,
   Trash2,
@@ -12,15 +12,17 @@ import {
   NotebookPen,
   PenLine,
   Eraser,
-  Pen,
+  Pencil,
+  Highlighter,
+  Undo2,
 } from 'lucide-react';
-import type { Note, BlockType } from '../types';
+import type { Highlight, Note, BlockType, ToolVariant } from '../types';
 import { TextBlock, CodeBlock } from './Blocks';
 import { DrawBlock } from './DrawBlock';
 import { InsertPoint } from './InsertPoint';
 import { PageCanvas, type PageCanvasHandle } from './PageCanvas';
 
-// ─── Palette (same as DrawBlock) ─────────────────────────────────────────────
+// ─── Palette ─────────────────────────────────────────────────────────────────
 const PALETTE = [
   { label: 'Ink', value: '#3A2E27' },
   { label: 'Teal', value: '#5FBFB0' },
@@ -35,6 +37,7 @@ const PAGE_HEIGHT_PX = 900;
 
 interface Props {
   note: Note | null;
+  noteId: string | null;
   ready: boolean;
   saveState: 'idle' | 'saving' | 'saved';
   onMenuOpen: () => void;
@@ -48,6 +51,10 @@ interface Props {
   onUpdateDrawLayer: (dataUrl: string) => void;
 }
 
+const isTextHighlighterTarget = (target: EventTarget | null) =>
+  target instanceof Element
+    && target.closest('[data-text-block-id]') !== null;
+
 // ─── Page break ──────────────────────────────────────────────────────────────
 const PageBreak: React.FC<{ page: number }> = ({ page }) => (
   <div className="page-break" aria-hidden="true">
@@ -55,9 +62,10 @@ const PageBreak: React.FC<{ page: number }> = ({ page }) => (
   </div>
 );
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Main component ──────────────────────────────────────────────────────────
 export const NoteEditor: React.FC<Props> = ({
   note,
+  noteId,
   ready,
   saveState,
   onMenuOpen,
@@ -70,18 +78,43 @@ export const NoteEditor: React.FC<Props> = ({
   onNewNote,
   onUpdateDrawLayer,
 }) => {
-  // ── Draw mode state ────────────────────────────────────────────────────────
+  // ── Draw state ──────────────────────────────────────────────────────────
   const [drawMode, setDrawMode] = useState(false);
-  const [drawTool, setDrawTool] = useState<'pen' | 'eraser'>('pen');
+  const [toolVariant, setToolVariant] = useState<ToolVariant>('pen');
   const [drawColor, setDrawColor] = useState(PALETTE[0].value);
   const [drawSize, setDrawSize] = useState(2.5);
 
-  // ── Refs ───────────────────────────────────────────────────────────────────
+  // ── Refs ─────────────────────────────────────────────────────────────────
   const pageCanvasRef = useRef<PageCanvasHandle | null>(null);
   const notebookContentRef = useRef<HTMLDivElement | null>(null);
+  const activePointerId = useRef<number | null>(null);
 
-  // ── Empty / no note ────────────────────────────────────────────────────────
-  if (!note) {
+  // ── Keyboard shortcut: Ctrl+Z / Cmd+Z for undo ─────────────────────────
+  useEffect(() => {
+    if (!drawMode) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        pageCanvasRef.current?.undo();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [drawMode]);
+
+  // ── Select a tool variant helper ────────────────────────────────────────
+  const selectTool = useCallback((variant: ToolVariant) => {
+    setToolVariant(variant);
+  }, []);
+
+  const selectColorAndPen = useCallback((color: string) => {
+    setDrawColor(color);
+    // If switching color, go back to last non-eraser tool (or pen)
+    setToolVariant((prev) => prev === 'eraser' ? 'pen' : prev);
+  }, []);
+
+  // ── Empty / no note ─────────────────────────────────────────────────────
+  if (!note || !noteId) {
     return (
       <div className="main empty-main-shell" role="main" aria-label="No note selected">
         <div className="note-toolbar slim">
@@ -102,9 +135,7 @@ export const NoteEditor: React.FC<Props> = ({
             {ready ? 'Pick a note or start fresh' : 'Loading your notes…'}
           </div>
           <p className="empty-main-sub">
-            {ready
-              ? 'this is your space.'
-              : 'One moment…'}
+            {ready ? 'this is your space.' : 'One moment…'}
           </p>
           {ready && (
             <button
@@ -121,18 +152,28 @@ export const NoteEditor: React.FC<Props> = ({
     );
   }
 
-  // ── Pointer events (Seamless stylus) ───────────────────────────────────────
+  // ── Pointer events (seamless stylus) ────────────────────────────────────
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const isPen = e.pointerType === 'pen';
-    const shouldDraw = isPen || drawMode;
-    if (shouldDraw) {
-      e.preventDefault(); // Stop text focus
-      e.currentTarget.setPointerCapture(e.pointerId);
-      pageCanvasRef.current?.startStroke(e);
-    }
+    const shouldDraw = isPen || (drawMode && e.pointerType !== 'touch');
+
+    if (!shouldDraw) return;
+    if (isPen && drawMode && toolVariant === 'highlighter' && isTextHighlighterTarget(e.target)) return;
+
+    // Reject if another pointer is already active
+    if (activePointerId.current !== null) return;
+    activePointerId.current = e.pointerId;
+
+    e.preventDefault();
+    // Capture on canvas, not the wrapper div
+    pageCanvasRef.current?.capturePointer(e.pointerId);
+    pageCanvasRef.current?.startStroke(e);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Only respond to the tracked pointer
+    if (activePointerId.current === null || e.pointerId !== activePointerId.current) return;
+
     const isPen = e.pointerType === 'pen';
     if (isPen || drawMode) {
       e.preventDefault();
@@ -141,18 +182,32 @@ export const NoteEditor: React.FC<Props> = ({
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (activePointerId.current === null || e.pointerId !== activePointerId.current) return;
+
     const isPen = e.pointerType === 'pen';
     if (isPen || drawMode) {
       e.preventDefault();
-      e.currentTarget.releasePointerCapture(e.pointerId);
-      pageCanvasRef.current?.endStroke(e);
+      pageCanvasRef.current?.releasePointer(e.pointerId);
+      pageCanvasRef.current?.endStroke();
     }
+    activePointerId.current = null;
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (activePointerId.current !== null && e.pointerId === activePointerId.current) {
+      // OS took over (e.g. handwriting overlay) — discard partial stroke + repaint
+      pageCanvasRef.current?.cancelStroke();
+      try { pageCanvasRef.current?.releasePointer(e.pointerId); } catch { /* noop */ }
+      activePointerId.current = null;
+    }
+    // Repaint to clear any compositing residue from OS overlays
+    pageCanvasRef.current?.repaintCanvas();
   };
 
   return (
     <main className="main" aria-label="Note editor">
 
-      {/* ── Rich toolbar ─────────────────────────────────────────────────── */}
+      {/* ── Rich toolbar ───────────────────────────────────────────────── */}
       <div className="note-toolbar" role="toolbar" aria-label="Note toolbar">
 
         {/* Left: menu (mobile) */}
@@ -207,21 +262,62 @@ export const NoteEditor: React.FC<Props> = ({
           <span>{drawMode ? 'Drawing' : 'Draw'}</span>
         </button>
 
-        {/* Draw tools — only when draw mode active */}
+        {/* Draw tools — visible when draw mode active */}
         {drawMode && (
           <>
             <div className="toolbar-divider" />
             <div className="toolbar-group toolbar-draw-tools" role="group" aria-label="Drawing tools">
+
+              {/* Tool variants */}
+              <button
+                type="button"
+                className={`toolbar-btn${toolVariant === 'pen' ? ' active' : ''}`}
+                onClick={() => selectTool('pen')}
+                title="Pen"
+                aria-label="Pen tool"
+              >
+                <PenLine size={14} />
+              </button>
+              <button
+                type="button"
+                className={`toolbar-btn${toolVariant === 'pencil' ? ' active' : ''}`}
+                onClick={() => selectTool('pencil')}
+                title="Pencil"
+                aria-label="Pencil tool"
+              >
+                <Pencil size={14} />
+              </button>
+              <button
+                type="button"
+                className={`toolbar-btn${toolVariant === 'highlighter' ? ' active' : ''}`}
+                onClick={() => selectTool('highlighter')}
+                title="Highlighter"
+                aria-label="Highlighter tool"
+              >
+                <Highlighter size={14} />
+              </button>
+              <button
+                type="button"
+                className={`toolbar-btn${toolVariant === 'eraser' ? ' active' : ''}`}
+                onClick={() => selectTool('eraser')}
+                title="Eraser"
+                aria-label="Eraser tool"
+              >
+                <Eraser size={14} />
+              </button>
+
+              <div className="toolbar-divider" />
+
               {/* Color swatches */}
               {PALETTE.map((p) => (
                 <button
                   key={p.value}
                   type="button"
-                  className={`draw-swatch${drawColor === p.value && drawTool === 'pen' ? ' active' : ''}`}
+                  className={`draw-swatch${drawColor === p.value && toolVariant !== 'eraser' ? ' active' : ''}`}
                   style={{ background: p.value }}
                   title={p.label}
                   aria-label={`${p.label} ink`}
-                  onClick={() => { setDrawColor(p.value); setDrawTool('pen'); }}
+                  onClick={() => selectColorAndPen(p.value)}
                 />
               ))}
 
@@ -238,15 +334,17 @@ export const NoteEditor: React.FC<Props> = ({
                 aria-label="Pen size"
               />
 
-              {/* Eraser */}
+              <div className="toolbar-divider" />
+
+              {/* Undo */}
               <button
                 type="button"
-                className={`toolbar-btn${drawTool === 'eraser' ? ' active' : ''}`}
-                onClick={() => setDrawTool(drawTool === 'eraser' ? 'pen' : 'eraser')}
-                title="Eraser"
-                aria-label="Eraser tool"
+                className="toolbar-btn"
+                onClick={() => pageCanvasRef.current?.undo()}
+                title="Undo last stroke (Ctrl+Z)"
+                aria-label="Undo stroke"
               >
-                <Eraser size={14} />
+                <Undo2 size={14} />
               </button>
 
               {/* Clear */}
@@ -257,7 +355,7 @@ export const NoteEditor: React.FC<Props> = ({
                 title="Clear all drawings on this page"
                 aria-label="Clear page drawing"
               >
-                <Pen size={14} />
+                <Trash2 size={14} />
                 <span>Clear</span>
               </button>
             </div>
@@ -285,7 +383,7 @@ export const NoteEditor: React.FC<Props> = ({
         </button>
       </div>
 
-      {/* ── Notebook scroll area ──────────────────────────────────────────── */}
+      {/* ── Notebook scroll area ──────────────────────────────────────── */}
       <div className="notebook-scroll">
         <div className="notebook-page">
           <div className="spiral-col" aria-hidden="true" />
@@ -296,7 +394,7 @@ export const NoteEditor: React.FC<Props> = ({
             onPointerDownCapture={handlePointerDown}
             onPointerMoveCapture={handlePointerMove}
             onPointerUpCapture={handlePointerUp}
-            onPointerCancelCapture={handlePointerUp}
+            onPointerCancelCapture={handlePointerCancel}
             style={{ touchAction: drawMode ? 'none' : 'auto' }}
           >
 
@@ -383,6 +481,8 @@ export const NoteEditor: React.FC<Props> = ({
                       <TextBlock
                         block={block}
                         onChange={(v) => onUpdateBlock(block.id, { content: v })}
+                        onChangeHighlights={(highlights: Highlight[]) => onUpdateBlock(block.id, { highlights })}
+                        highlighterEnabled={drawMode && toolVariant === 'highlighter'}
                       />
                     )}
                   </div>
@@ -396,9 +496,10 @@ export const NoteEditor: React.FC<Props> = ({
             <PageCanvas
               ref={pageCanvasRef}
               active={drawMode}
-              tool={drawTool}
+              toolVariant={toolVariant}
               color={drawColor}
               size={drawSize}
+              noteId={noteId}
               initialDrawing={note.drawLayer}
               onChange={onUpdateDrawLayer}
               contentEl={notebookContentRef.current}

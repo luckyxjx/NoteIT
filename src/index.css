@@ -374,20 +374,28 @@ html, body, #root {
 }
 .icon-btn.menu-btn { display: none; }
 
-/* ─── Top Toolbar (Rich Text style) ─────────────────────────────────────── */
+/* ─── Toolbar (fixed at bottom, always reachable) ──────────────────────────── */
 .note-toolbar {
+  position: fixed;
+  bottom: 0;
+  left: var(--sidebar-w);
+  right: 0;
+  z-index: 100;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 0 16px;
   height: var(--topbar-h);
-  border-bottom: 1px solid rgba(241,230,216,0.07);
-  background: var(--bg);
-  flex-shrink: 0;
+  border-top: 1px solid rgba(241,230,216,0.07);
+  background: var(--bg-deep);
   overflow-x: auto;
   scrollbar-width: none;
 }
 .note-toolbar::-webkit-scrollbar { display: none; }
+
+@media (max-width: 768px) {
+  .note-toolbar { left: 0; }
+}
 
 .note-toolbar.slim {
   justify-content: space-between;
@@ -457,10 +465,9 @@ html, body, #root {
 .notebook-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 28px 20px 80px;
+  padding: 28px 20px calc(var(--topbar-h) + 32px); /* bottom clears fixed toolbar */
   display: flex;
   justify-content: center;
-  /* dark grid desk already comes from .app-shell */
 }
 
 /* ─── Notebook page (the cream sheet) ───────────────────────────────────── */
@@ -532,6 +539,7 @@ html, body, #root {
 .notebook-content {
   flex: 1;
   min-width: 0;
+  min-height: 85vh;
   padding: 28px 32px 56px 20px;
   position: relative; /* for page-canvas absolute positioning */
   /* Ruled lines aligned to textarea line-height */
@@ -599,21 +607,37 @@ html, body, #root {
 }
 .text-surface:focus-within { outline: none; }
 
-.text-surface textarea {
+.text-editor {
   width: 100%;
+  min-height: 30px;
   border: none;
   outline: none;
   background: transparent;
-  resize: none;
   font-size: 14.5px;
   line-height: 30px;
   color: var(--cream-ink);
-  overflow: hidden;
   font-family: var(--font-sans);
   padding: 0;
   caret-color: var(--teal);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
-.text-surface textarea::placeholder { color: var(--cream-meta); }
+.text-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--cream-meta);
+  pointer-events: none;
+}
+
+::highlight(noteit-text-highlight) {
+  background-color: rgba(95, 191, 176, 0.28);
+}
+
+mark.nb-highlight {
+  background: rgba(95, 191, 176, 0.28);
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 2px;
+}
 
 /* ─── Code Block ─────────────────────────────────────────────────────────── */
 .code-surface {

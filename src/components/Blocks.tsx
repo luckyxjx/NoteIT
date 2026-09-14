@@ -1,23 +1,168 @@
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Copy, Check } from 'lucide-react';
-import type { CodeBlock as CodeBlockType, TextBlock as TextBlockType } from '../types';
+import type {
+  CodeBlock as CodeBlockType,
+  Highlight,
+  TextBlock as TextBlockType,
+} from '../types';
 import { AutoTextarea } from './AutoTextarea';
+import { useTextHighlight } from '../hooks/useTextHighlight';
 
 // ─── Text Block ───────────────────────────────────────────────────────────────
 interface TextBlockProps {
   block: TextBlockType;
   onChange: (content: string) => void;
+  onChangeHighlights: (highlights: Highlight[]) => void;
+  highlighterEnabled: boolean;
 }
 
-export const TextBlock: React.FC<TextBlockProps> = ({ block, onChange }) => (
-  <div className="text-surface">
-    <AutoTextarea
-      value={block.content}
-      placeholder="Write freely…"
-      onChange={onChange}
-    />
-  </div>
-);
+const remapHighlightsForEdit = (
+  oldText: string,
+  newText: string,
+  highlights: Highlight[],
+) => {
+  if (oldText === newText) return highlights;
+
+  let prefix = 0;
+  while (
+    prefix < oldText.length
+    && prefix < newText.length
+    && oldText[prefix] === newText[prefix]
+  ) {
+    prefix += 1;
+  }
+
+  let suffix = 0;
+  while (
+    suffix < oldText.length - prefix
+    && suffix < newText.length - prefix
+    && oldText[oldText.length - 1 - suffix] === newText[newText.length - 1 - suffix]
+  ) {
+    suffix += 1;
+  }
+
+  const oldEditEnd = oldText.length - suffix;
+  const newEditEnd = newText.length - suffix;
+  const delta = newText.length - oldText.length;
+
+  return highlights
+    .map((highlight) => {
+      if (highlight.end <= prefix) return highlight;
+      if (highlight.start >= oldEditEnd) {
+        return {
+          ...highlight,
+          start: highlight.start + delta,
+          end: highlight.end + delta,
+        };
+      }
+
+      return {
+        ...highlight,
+        start: highlight.start < prefix ? highlight.start : prefix,
+        end: highlight.end > oldEditEnd ? highlight.end + delta : newEditEnd,
+      };
+    })
+    .map((highlight) => ({
+      ...highlight,
+      start: Math.max(0, Math.min(highlight.start, newText.length)),
+      end: Math.max(0, Math.min(highlight.end, newText.length)),
+    }))
+    .filter((highlight) => highlight.start < highlight.end);
+};
+
+const renderFallbackText = (content: string, highlights: Highlight[]) => {
+  const pieces: React.ReactNode[] = [];
+  let cursor = 0;
+
+  highlights.forEach((highlight) => {
+    if (highlight.start > cursor) {
+      pieces.push(content.slice(cursor, highlight.start));
+    }
+    pieces.push(
+      <mark className="nb-highlight" key={highlight.id}>
+        {content.slice(highlight.start, highlight.end)}
+      </mark>,
+    );
+    cursor = highlight.end;
+  });
+
+  if (cursor < content.length) pieces.push(content.slice(cursor));
+  return pieces.length > 0 ? pieces : null;
+};
+
+export const TextBlock: React.FC<TextBlockProps> = ({
+  block,
+  onChange,
+  onChangeHighlights,
+  highlighterEnabled,
+}) => {
+  const latestContent = useRef(block.content);
+  const isComposing = useRef(false);
+  const highlights = useMemo(() => block.highlights ?? [], [block.highlights]);
+  const {
+    rootRef,
+    supportsCssHighlights,
+    safeHighlights,
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerUp,
+    handlePointerCancel,
+  } = useTextHighlight({
+    blockId: block.id,
+    content: block.content,
+    highlights,
+    enabled: highlighterEnabled,
+    onCommit: onChangeHighlights,
+  });
+
+  useLayoutEffect(() => {
+    latestContent.current = block.content;
+    const el = rootRef.current;
+    if (!el || !supportsCssHighlights || document.activeElement === el) return;
+    if (el.textContent !== block.content) {
+      el.textContent = block.content;
+    }
+  }, [block.content, rootRef, supportsCssHighlights]);
+
+  const handleInput = () => {
+    if (isComposing.current) return;
+    const nextContent = rootRef.current?.textContent ?? '';
+    const remappedHighlights = remapHighlightsForEdit(latestContent.current, nextContent, highlights);
+    latestContent.current = nextContent;
+    onChange(nextContent);
+    if (remappedHighlights !== highlights) onChangeHighlights(remappedHighlights);
+  };
+
+  const handleCompositionEnd = () => {
+    isComposing.current = false;
+    handleInput();
+  };
+
+  return (
+    <div className="text-surface">
+      <div
+        ref={rootRef}
+        className="text-editor"
+        contentEditable
+        suppressContentEditableWarning
+        role="textbox"
+        aria-multiline="true"
+        spellCheck
+        data-placeholder="Write freely…"
+        data-text-block-id={block.id}
+        onInput={handleInput}
+        onCompositionStart={() => { isComposing.current = true; }}
+        onCompositionEnd={handleCompositionEnd}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+      >
+        {supportsCssHighlights ? null : renderFallbackText(block.content, safeHighlights)}
+      </div>
+    </div>
+  );
+};
 
 // ─── Code Block ───────────────────────────────────────────────────────────────
 interface CodeBlockProps {
